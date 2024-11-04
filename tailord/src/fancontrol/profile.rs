@@ -61,6 +61,8 @@ impl FanProfile {
         // From 75°C the fan speed should ramp up to
         // 100% at 95°C.
         for value in &mut inner {
+            continue;
+
             let min_speed = value.temp.saturating_sub(75).saturating_mul(5).min(100);
 
             if min_speed > value.fan {
