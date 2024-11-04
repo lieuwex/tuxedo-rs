@@ -46,7 +46,10 @@ impl LedRuntime {
 impl LedRuntimeData {
     pub async fn update_colors(&mut self, suspend_receiver: &mut broadcast::Receiver<bool>) {
         match &self.profile {
-            ColorProfile::None => pending().await,
+            ColorProfile::None => {
+                self.controller.set_color(&Color { r: 0, g: 0, b: 0 }).await.unwrap();
+                pending().await
+            },
             ColorProfile::Single(color) => {
                 self.controller.set_color(color).await.unwrap();
                 pending().await
