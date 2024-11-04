@@ -27,7 +27,8 @@ impl FanRuntimeData {
                 self.fan_speed.saturating_sub(fan_increment)
             });
 
-            let delay = suitable_delay(&self.temp_history, fan_diff);
+            //let delay = suitable_delay(&self.temp_history, fan_diff);
+            let delay = Duration::from_millis(100);
 
             tracing::debug!(
                 "Fan {}: Current temperature is {current_temp}°C, fan speed: {}%, target fan speed: {target_fan_speed} \
