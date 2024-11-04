@@ -18,7 +18,10 @@ impl FanRuntimeData {
             // If the target fan speed is below 50%, don't increase the speed at all
             // unless the difference is higher than 3% to avoid frequent speed changes
             // at low temperatures.
-            let fan_increment = fan_diff / 4 + (target_fan_speed / 50);
+            let mut fan_increment = fan_diff / 4 + (target_fan_speed / 50);
+            if target_fan_speed > self.fan_speed {
+                fan_increment = fan_increment.min(3).max(1);
+            }
 
             // Update fan speed
             self.set_speed(if target_fan_speed > self.fan_speed {
