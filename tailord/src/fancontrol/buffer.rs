@@ -1,9 +1,9 @@
-const TEMP_HISTORY_LENGTH: usize = 5;
+const TEMP_HISTORY_LENGTH: usize = 40; // 4 seconds
 
 #[derive(Debug)]
 pub struct TemperatureBuffer {
     // Stores the temperature history.
-    temp_history: Box<[u8; TEMP_HISTORY_LENGTH]>,
+    pub(crate) temp_history: Box<[u8; TEMP_HISTORY_LENGTH]>,
     position: usize,
 }
 

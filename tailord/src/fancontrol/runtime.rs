@@ -9,7 +9,8 @@ impl FanRuntimeData {
     pub async fn fan_control_loop(&mut self) {
         loop {
             // Add the current temperature to history
-            let current_temp = self.update_temp();
+            let act_current_temp = self.update_temp();
+            let current_temp = *self.temp_history.temp_history.iter().min().unwrap();
 
             let target_fan_speed = self.profile.calc_target_fan_speed(current_temp);
             let fan_diff = self.fan_speed.abs_diff(target_fan_speed);
@@ -34,7 +35,7 @@ impl FanRuntimeData {
             let delay = Duration::from_millis(100);
 
             tracing::debug!(
-                "Fan {}: Current temperature is {current_temp}°C, fan speed: {}%, target fan speed: {target_fan_speed} \
+                "Fan {}: Current temperature is {act_current_temp}°C, pretending it is {current_temp}°C, fan speed: {}%, target fan speed: {target_fan_speed} \
                 fan diff: {fan_diff}, fan increment {fan_increment}, delay: {delay:?}", self.fan_idx, self.fan_speed
             );
 
