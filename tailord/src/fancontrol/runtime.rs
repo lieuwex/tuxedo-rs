@@ -3,10 +3,41 @@ use crate::suspend::process_suspend;
 use super::{buffer::TemperatureBuffer, FanRuntimeData};
 
 use std::time::Duration;
+use std::path::Path;
+use tokio::io;
+use tokio_uring::fs;
+
+async fn rw_file<P>(path: P) -> Result<fs::File, io::Error>
+where
+    P: AsRef<Path>,
+{
+    fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path)
+        .await
+}
+
+async fn write_buffer<V>(file: &mut fs::File, value: V) -> Result<(), io::Error>
+where
+    V: tokio_uring::buf::IoBuf,
+{
+    file.write_at(value, 0).submit().await.0?;
+    Ok(())
+}
+
+async fn write_string(file: &mut fs::File, string: String) -> Result<(), io::Error> {
+    write_buffer(file, string.into_bytes()).await
+}
+async fn write_int(file: &mut fs::File, int: u32) -> Result<(), io::Error> {
+    write_string(file, format!("{}", int)).await
+}
 
 impl FanRuntimeData {
     #[tracing::instrument(level = "debug", skip(self))]
     pub async fn fan_control_loop(&mut self) {
+        let mut powerclamp_file = rw_file("/sys/class/thermal/cooling_device16/cur_state").await.unwrap();
+
         loop {
             // Add the current temperature to history
             let act_current_temp = self.update_temp();
@@ -31,12 +62,18 @@ impl FanRuntimeData {
                 self.fan_speed.saturating_sub(fan_increment)
             });
 
+            // update intel_powerclamp
+            let target_power_limit = self.profile.calc_target_power_limit(act_current_temp);
+            if let Err(err) = write_int(&mut powerclamp_file, target_power_limit as u32).await{
+                tracing::error!("Failed setting new power limit: `{err}`");
+            }
+
             //let delay = suitable_delay(&self.temp_history, fan_diff);
             let delay = Duration::from_millis(100);
 
             tracing::debug!(
                 "Fan {}: Current temperature is {act_current_temp}°C, pretending it is {current_temp}°C, fan speed: {}%, target fan speed: {target_fan_speed} \
-                fan diff: {fan_diff}, fan increment {fan_increment}, delay: {delay:?}", self.fan_idx, self.fan_speed
+                fan diff: {fan_diff}, fan increment {fan_increment}, target power_limit: {target_power_limit}, delay: {delay:?}", self.fan_idx, self.fan_speed
             );
 
             tokio::select! {

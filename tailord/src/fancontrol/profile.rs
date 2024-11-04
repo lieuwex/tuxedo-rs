@@ -84,6 +84,7 @@ impl FanProfile {
             inner.push(FanProfilePoint {
                 temp: 100,
                 fan: 100,
+                power_limit: 0,
             })
         }
 
@@ -119,20 +120,80 @@ impl FanProfile {
             100
         }
     }
+
+    pub fn calc_target_power_limit(&self, current_temp: u8) -> u8 {
+        // Find the first item that has a greater or equal temperature.
+        let position = self.inner.iter().position(|p| p.temp >= current_temp);
+
+        if let Some(position) = position {
+            let profile_point = &self.inner[position];
+
+            // If the profile point fits exact or it's the first element,
+            // directly use its temperature.
+            if profile_point.temp == current_temp || position == 0 {
+                profile_point.power_limit
+            } else {
+                let prev_point = &self.inner[position - 1];
+
+                // Interpolate with a linear slope between those two points.
+                // Use u16 to make sure the multiplication doesn't overflow.
+                let temp_diff = (profile_point.temp - prev_point.temp) as u16;
+                let curr_temp_diff = (current_temp - prev_point.temp) as u16;
+                let diff = (profile_point.power_limit - prev_point.power_limit) as u16;
+
+                prev_point.power_limit + (diff * curr_temp_diff / temp_diff) as u8
+            }
+        } else {
+            // The temperature is higher than anything in the list.
+            self.inner.last().unwrap().power_limit
+        }
+    }
 }
 
 impl Default for FanProfile {
     fn default() -> Self {
         Self {
             inner: vec![
-                FanProfilePoint { temp: 25, fan: 0 },
-                FanProfilePoint { temp: 30, fan: 10 },
-                FanProfilePoint { temp: 40, fan: 22 },
-                FanProfilePoint { temp: 50, fan: 35 },
-                FanProfilePoint { temp: 60, fan: 45 },
-                FanProfilePoint { temp: 70, fan: 62 },
-                FanProfilePoint { temp: 80, fan: 75 },
-                FanProfilePoint { temp: 90, fan: 100 },
+                FanProfilePoint {
+                    temp: 25,
+                    fan: 0,
+                    power_limit: 0,
+                },
+                FanProfilePoint {
+                    temp: 30,
+                    fan: 10,
+                    power_limit: 0,
+                },
+                FanProfilePoint {
+                    temp: 40,
+                    fan: 22,
+                    power_limit: 0,
+                },
+                FanProfilePoint {
+                    temp: 50,
+                    fan: 35,
+                    power_limit: 0,
+                },
+                FanProfilePoint {
+                    temp: 60,
+                    fan: 45,
+                    power_limit: 0,
+                },
+                FanProfilePoint {
+                    temp: 70,
+                    fan: 62,
+                    power_limit: 0,
+                },
+                FanProfilePoint {
+                    temp: 80,
+                    fan: 75,
+                    power_limit: 0,
+                },
+                FanProfilePoint {
+                    temp: 90,
+                    fan: 100,
+                    power_limit: 0,
+                },
             ],
         }
     }
