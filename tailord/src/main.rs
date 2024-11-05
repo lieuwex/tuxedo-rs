@@ -197,7 +197,7 @@ async fn start_runtime() {
         }
         _ = shutdown_receiver.recv() => {
             tracing::info!("Shutting down, bye!");
-            std::process::abort()
+            std::process::exit(0)
         }
     }
 }
