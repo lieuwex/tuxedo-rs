@@ -1,4 +1,4 @@
-const TEMP_HISTORY_LENGTH: usize = 40; // 4 seconds
+const TEMP_HISTORY_LENGTH: usize = 35; // 3.5 seconds
 
 #[derive(Debug)]
 pub struct TemperatureBuffer {
