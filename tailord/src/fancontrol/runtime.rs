@@ -2,8 +2,8 @@ use crate::suspend::process_suspend;
 
 use super::{buffer::TemperatureBuffer, FanRuntimeData};
 
-use std::time::Duration;
 use std::path::Path;
+use std::time::Duration;
 use tokio::io;
 use tokio_uring::fs;
 
@@ -53,7 +53,9 @@ impl FanRuntimeData {
             // at low temperatures.
             let mut fan_increment = fan_diff / 4 + (target_fan_speed / 50);
             if target_fan_speed > self.fan_speed {
-                fan_increment = fan_increment.min(3).max(1);
+                fan_increment = fan_increment.min(3);
+            } else if target_fan_speed < self.fan_speed {
+                fan_increment = fan_increment.min(3);
             }
 
             // Update fan speed
@@ -66,7 +68,7 @@ impl FanRuntimeData {
             // update intel_powerclamp
             let target_power_limit = self.profile.calc_target_power_limit(act_current_temp);
             if previous_powerclamp.map_or(true, |prev| prev != target_power_limit) {
-                if let Err(err) = write_int(&mut powerclamp_file, target_power_limit as u32).await{
+                if let Err(err) = write_int(&mut powerclamp_file, target_power_limit as u32).await {
                     tracing::error!("Failed setting new power limit: `{err}`");
                 }
                 previous_powerclamp = Some(target_power_limit);
