@@ -37,6 +37,7 @@ impl FanRuntimeData {
     #[tracing::instrument(level = "debug", skip(self))]
     pub async fn fan_control_loop(&mut self) {
         let mut powerclamp_file = rw_file("/sys/class/thermal/cooling_device16/cur_state").await.unwrap();
+        let mut previous_powerclamp: Option<u8> = None;
 
         loop {
             // Add the current temperature to history
@@ -64,8 +65,11 @@ impl FanRuntimeData {
 
             // update intel_powerclamp
             let target_power_limit = self.profile.calc_target_power_limit(act_current_temp);
-            if let Err(err) = write_int(&mut powerclamp_file, target_power_limit as u32).await{
-                tracing::error!("Failed setting new power limit: `{err}`");
+            if previous_powerclamp.map_or(true, |prev| prev != target_power_limit) {
+                if let Err(err) = write_int(&mut powerclamp_file, target_power_limit as u32).await{
+                    tracing::error!("Failed setting new power limit: `{err}`");
+                }
+                previous_powerclamp = Some(target_power_limit);
             }
 
             //let delay = suitable_delay(&self.temp_history, fan_diff);
