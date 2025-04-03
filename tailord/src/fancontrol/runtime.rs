@@ -36,7 +36,9 @@ async fn write_int(file: &mut fs::File, int: u32) -> Result<(), io::Error> {
 impl FanRuntimeData {
     #[tracing::instrument(level = "debug", skip(self))]
     pub async fn fan_control_loop(&mut self) {
-        let mut powerclamp_file = rw_file("/sys/class/thermal/cooling_device16/cur_state").await.unwrap();
+        let mut powerclamp_file = rw_file("/sys/class/thermal/cooling_device20/cur_state")
+            .await
+            .unwrap();
         let mut previous_powerclamp: Option<u8> = None;
 
         loop {
