@@ -6,3 +6,9 @@ pub struct FanProfilePoint {
     /// value to write to `/sys/class/thermal/cooling_device16/cur_state`
     pub power_limit: u8,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub struct FanProfile {
+    pub points: Vec<FanProfilePoint>,
+    pub sticky: bool,
+}

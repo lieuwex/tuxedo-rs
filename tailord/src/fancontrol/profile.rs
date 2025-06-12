@@ -6,7 +6,7 @@ use zbus::fdo;
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(transparent)]
 pub struct FanProfile {
-    inner: Vec<FanProfilePoint>,
+    inner: tailor_api::FanProfile,
 }
 
 impl FanProfile {
@@ -14,15 +14,16 @@ impl FanProfile {
         let file_name = file_name.as_ref();
         let content =
             std::fs::read(file_name).map_err(|err| fdo::Error::IOError(err.to_string()))?;
-        let mut inner: Vec<FanProfilePoint> = serde_json::from_slice(&content)
+        let mut inner: tailor_api::FanProfile = serde_json::from_slice(&content)
             .map_err(|err| fdo::Error::InvalidFileContent(err.to_string()))?;
 
-        if inner.is_empty() {
+        if inner.points.is_empty() {
             return Err(fdo::Error::FileNotFound("Empty configuration".to_string()));
         }
 
         // Make sure the temperature is increasing with each point.
         let is_sorted = inner
+            .points
             .iter()
             .try_fold(-1, |prev_value, new_value| {
                 let new_value = i16::from(new_value.temp);
@@ -37,12 +38,14 @@ impl FanProfile {
 
         if !is_sorted {
             tracing::warn!("Temperature in temperature profile isn't increasing: `{file_name:?}`");
-            inner.sort_by(|first, second| first.temp.cmp(&second.temp));
+            inner
+                .points
+                .sort_by(|first, second| first.temp.cmp(&second.temp));
         }
 
         // Make sure that the fan speed is increasing along with the temperature.
         let prev_speed = 100;
-        for value in inner.iter_mut().rev() {
+        for value in inner.points.iter_mut().rev() {
             // Cap value to 100
             if value.fan > 100 {
                 tracing::warn!("Fan speed can't be larger than 100%: `{file_name:?}`");
@@ -60,7 +63,7 @@ impl FanProfile {
         // Make sure some minimum fan speed is kept:
         // From 75°C the fan speed should ramp up to
         // 100% at 95°C.
-        for value in &mut inner {
+        for value in &mut inner.points {
             continue;
 
             let min_speed = value.temp.saturating_sub(75).saturating_mul(5).min(100);
@@ -77,11 +80,11 @@ impl FanProfile {
         }
 
         // Make sure that 100% fan speed will be reached
-        if inner.last().unwrap().fan < 100 {
+        if inner.points.last().unwrap().fan < 100 {
             tracing::warn!(
                 "Fan speed 100% is never reached. Set speed to 100% at 100°C: `{file_name:?}`"
             );
-            inner.push(FanProfilePoint {
+            inner.points.push(FanProfilePoint {
                 temp: 100,
                 fan: 100,
                 power_limit: 0,
@@ -94,18 +97,20 @@ impl FanProfile {
     // Use the temp profile in the configuration to calculate the
     // corresponding fan speed.
     pub fn calc_target_fan_speed(&self, current_temp: u8) -> u8 {
+        let points = &self.inner.points;
+
         // Find the first item that has a greater or equal temperature.
-        let position = self.inner.iter().position(|p| p.temp >= current_temp);
+        let position = points.iter().position(|p| p.temp >= current_temp);
 
         if let Some(position) = position {
-            let profile_point = &self.inner[position];
+            let profile_point = &points[position];
 
             // If the profile point fits exact or it's the first element,
             // directly use its temperature.
             if profile_point.temp == current_temp || position == 0 {
                 profile_point.fan
             } else {
-                let prev_point = &self.inner[position - 1];
+                let prev_point = &points[position - 1];
 
                 // Interpolate with a linear slope between those two points.
                 // Use u16 to make sure the multiplication doesn't overflow.
@@ -122,18 +127,20 @@ impl FanProfile {
     }
 
     pub fn calc_target_power_limit(&self, current_temp: u8) -> u8 {
+        let points = &self.inner.points;
+
         // Find the first item that has a greater or equal temperature.
-        let position = self.inner.iter().position(|p| p.temp >= current_temp);
+        let position = points.iter().position(|p| p.temp >= current_temp);
 
         if let Some(position) = position {
-            let profile_point = &self.inner[position];
+            let profile_point = &points[position];
 
             // If the profile point fits exact or it's the first element,
             // directly use its temperature.
             if profile_point.temp == current_temp || position == 0 {
                 profile_point.power_limit
             } else {
-                let prev_point = &self.inner[position - 1];
+                let prev_point = &points[position - 1];
 
                 // Interpolate with a linear slope between those two points.
                 // Use u16 to make sure the multiplication doesn't overflow.
@@ -145,56 +152,63 @@ impl FanProfile {
             }
         } else {
             // The temperature is higher than anything in the list.
-            self.inner.last().unwrap().power_limit
+            points.last().unwrap().power_limit
         }
+    }
+
+    pub fn is_sticky(&self) -> bool {
+        self.inner.sticky
     }
 }
 
 impl Default for FanProfile {
     fn default() -> Self {
         Self {
-            inner: vec![
-                FanProfilePoint {
-                    temp: 25,
-                    fan: 0,
-                    power_limit: 0,
-                },
-                FanProfilePoint {
-                    temp: 30,
-                    fan: 10,
-                    power_limit: 0,
-                },
-                FanProfilePoint {
-                    temp: 40,
-                    fan: 22,
-                    power_limit: 0,
-                },
-                FanProfilePoint {
-                    temp: 50,
-                    fan: 35,
-                    power_limit: 0,
-                },
-                FanProfilePoint {
-                    temp: 60,
-                    fan: 45,
-                    power_limit: 0,
-                },
-                FanProfilePoint {
-                    temp: 70,
-                    fan: 62,
-                    power_limit: 0,
-                },
-                FanProfilePoint {
-                    temp: 80,
-                    fan: 75,
-                    power_limit: 0,
-                },
-                FanProfilePoint {
-                    temp: 90,
-                    fan: 100,
-                    power_limit: 0,
-                },
-            ],
+            inner: tailor_api::FanProfile {
+                points: vec![
+                    FanProfilePoint {
+                        temp: 25,
+                        fan: 0,
+                        power_limit: 0,
+                    },
+                    FanProfilePoint {
+                        temp: 30,
+                        fan: 10,
+                        power_limit: 0,
+                    },
+                    FanProfilePoint {
+                        temp: 40,
+                        fan: 22,
+                        power_limit: 0,
+                    },
+                    FanProfilePoint {
+                        temp: 50,
+                        fan: 35,
+                        power_limit: 0,
+                    },
+                    FanProfilePoint {
+                        temp: 60,
+                        fan: 45,
+                        power_limit: 0,
+                    },
+                    FanProfilePoint {
+                        temp: 70,
+                        fan: 62,
+                        power_limit: 0,
+                    },
+                    FanProfilePoint {
+                        temp: 80,
+                        fan: 75,
+                        power_limit: 0,
+                    },
+                    FanProfilePoint {
+                        temp: 90,
+                        fan: 100,
+                        power_limit: 0,
+                    },
+                ],
+                sticky: false,
+            },
         }
     }
 }

@@ -44,7 +44,11 @@ impl FanRuntimeData {
         loop {
             // Add the current temperature to history
             let act_current_temp = self.update_temp();
-            let current_temp = *self.temp_history.temp_history.iter().min().unwrap();
+            let current_temp = if self.profile.is_sticky() {
+                *self.temp_history.temp_history.iter().min().unwrap()
+            } else {
+                act_current_temp
+            };
 
             let target_fan_speed = self.profile.calc_target_fan_speed(current_temp);
             let fan_diff = self.fan_speed.abs_diff(target_fan_speed);
@@ -81,7 +85,7 @@ impl FanRuntimeData {
 
             tracing::debug!(
                 "Fan {}: Current temperature is {act_current_temp}°C, pretending it is {current_temp}°C, fan speed: {}%, target fan speed: {target_fan_speed} \
-                fan diff: {fan_diff}, fan increment {fan_increment}, target power_limit: {target_power_limit}, delay: {delay:?}", self.fan_idx, self.fan_speed
+                fan diff: {fan_diff}, fan increment {fan_increment}, target power_limit: {target_power_limit}, delay: {delay:?}, sticky: {:?}", self.fan_idx, self.fan_speed, self.profile.is_sticky(),
             );
 
             tokio::select! {
