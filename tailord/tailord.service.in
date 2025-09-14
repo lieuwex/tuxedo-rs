@@ -6,6 +6,8 @@ After=systemd-logind.service
 Type=dbus
 BusName=com.tux.Tailor
 ExecStart=@BIN@
+Nice=-15
+IOSchedulingClass=realtime
 Environment="RUST_BACKTRACE=1"
 
 [Install]
